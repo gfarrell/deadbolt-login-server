@@ -1,5 +1,6 @@
 /* global module, require */
-var route  = require('./route');
+var route    = require('./route');
+var services = require('../control/services');
 
 module.exports = {
     makeRoute: function(url, data) {
@@ -11,6 +12,7 @@ module.exports = {
         var action = parts[0] === '' ? 'index' : parts.shift();
 
         console.log('- action: ' + action);
+        console.log('- params: ' + parts);
 
         var m = (this.hasOwnProperty(action)) ? this[action] : this.error404;
 
@@ -28,8 +30,19 @@ module.exports = {
 
     // action: getServiceCredentials
     getServiceCredentials: function(res, route) {
-        res.writeHead(501);
-        res.end('Not implemented');
+        try {
+            var service = services.load(route.params[0]);
+
+            res.setHeader('Content-Type', 'application/json');
+            res.writeHead(200);
+            var data = service.getCredentials();
+            res.write(JSON.stringify(data));
+            res.end();
+
+        } catch(e) {
+            console.log('- ' + e.message);
+            this.error404(res);
+        }
     },
 
     // action: error404

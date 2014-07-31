@@ -2,7 +2,7 @@
 var route    = require('./route');
 var services = require('../control/services');
 
-module.exports = {
+var router = {
     makeRoute: function(url, data) {
         console.log('routing ' + url);
 
@@ -14,7 +14,7 @@ module.exports = {
         console.log('- action: ' + action);
         console.log('- params: ' + parts);
 
-        var m = (this.hasOwnProperty(action)) ? this[action] : this.error404;
+        var m = (router.hasOwnProperty(action)) ? router[action] : router.error404;
 
         return route.make(m)
                     .withParameters(parts)
@@ -41,7 +41,7 @@ module.exports = {
 
         } catch(e) {
             console.log('- ' + e.message);
-            this.error404(res);
+            router.error404(res);
         }
     },
 
@@ -52,3 +52,5 @@ module.exports = {
         res.end('Not found');
     }
 };
+
+module.exports = router;

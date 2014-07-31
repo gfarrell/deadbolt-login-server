@@ -1,0 +1,6 @@
+{
+    "facebook": {
+        "loginPage": "www.facebook.com/login.php",
+        "domains"  : ["facebook.com", "*.facebook.com"]
+    }
+}

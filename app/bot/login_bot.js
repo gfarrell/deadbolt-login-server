@@ -84,6 +84,8 @@ LoginBot.prototype.botLoaded = function (status) {
             // have submitted login form
             console.log('- 1 Login form submitted');
             this.loginCallback(this.extractCookies());
+            this.page.exit();
+            break;
         }
     }
 };

@@ -51,10 +51,10 @@ LoginBot.prototype.initiateLogin = function (callback) {
             page.customHeaders  = self.headers;
 
             // open the login page
-            page.open(this.getLoginURL(), function() {
+            page.open(self.getLoginURL(), function() {
                 // fill and submit login form
                 var pageFunction = require('./' + self.service.name + '_login').createLoginScript(self.credentials);
-                self.phantom.evaluate(pageFunction);
+                page.evaluate(pageFunction);
             });
         });
     });

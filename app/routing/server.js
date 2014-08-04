@@ -20,7 +20,7 @@ module.exports = {
 
             req.on('end', function() {
                 var data = querystring.parse(fullBody);
-                router.makeRoute(req.url, data).respond(res);
+                router.makeRoute(req, data).respond(res);
             });
         }).listen(port);
     }

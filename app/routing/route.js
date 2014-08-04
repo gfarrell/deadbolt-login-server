@@ -17,10 +17,11 @@ maker.prototype.withData = function(data) {
     }
     return this;
 };
-maker.prototype.create = function() {
+maker.prototype.create = function(request) {
     var r =  new Route(this.action);
     r.setParameters(this.parameters);
     r.setData(this.data);
+    r.request = request;
 
     return r;
 };

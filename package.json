@@ -7,5 +7,8 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Gideon Farrell <me@gideonfarrell.co.uk>",
-  "license": "N/A"
+  "license": "N/A",
+  "dependencies": {
+    "phantom": "^0.6.5"
+  }
 }

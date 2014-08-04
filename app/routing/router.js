@@ -31,24 +31,6 @@ var router = {
         res.end('Welcome to the Deadbolt testing server');
     },
 
-    // action: getServiceCredentials
-    getServiceCredentials: function(res, route) {
-        try {
-            var service = services.load(route.params[0]);
-
-            res.setHeader('Content-Type', 'application/json');
-            res.writeHead(200);
-            var data = service.getCredentials();
-            res.write(JSON.stringify(data));
-            res.write(JSON.stringify(route.request.headers));
-            res.end();
-
-        } catch(e) {
-            console.log('- ' + e.message);
-            router.error404(res);
-        }
-    },
-
     // action: requestLogin
     requestLogin: function(res, route) {
         try {

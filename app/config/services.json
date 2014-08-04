@@ -1,6 +1,8 @@
 {
     "facebook": {
+        "name": "facebook",
         "loginPage": "www.facebook.com/login.php",
-        "domains"  : ["facebook.com", "*.facebook.com"]
+        "domains"  : ["facebook.com", "*.facebook.com"],
+        "loginCookies": ["c_user", "xs"]
     }
 }

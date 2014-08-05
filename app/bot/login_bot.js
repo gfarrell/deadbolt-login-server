@@ -12,7 +12,9 @@ var LoginBot = function(serviceController) {
     this.state = 0;
     this.timer = false;
 
-    this.subscribe('load', this.onLoad);
+    this.subscribe('error', function(message) {
+        console.log('[!] ' + message);
+    });
 };
 
 LoginBot.TIMEOUT = 15000;

@@ -1,6 +1,7 @@
 /* global module */
 
 var Phantom = require('phantom');
+var Vent    = require('event.js');
 
 var LoginBot = function(serviceController) {
     var self = this;
@@ -10,9 +11,11 @@ var LoginBot = function(serviceController) {
 
     this.state = 0;
     this.timer = false;
+
+    this.subscribe('load', this.onLoad);
 };
 
-LoginBot.TIMEOUT = 10000;
+LoginBot.TIMEOUT = 15000;
 
 /**
  * Mimics a browser by examining a request
@@ -46,7 +49,7 @@ LoginBot.prototype.getLoginURL = function () {
  * Initiates the login process
  * @param {Function} callback to be called when login is complete
  */
-LoginBot.prototype.initiateLogin = function (callback) {
+LoginBot.prototype.initiateLogin = function (onLogin, onLoginError) {
     var self = this;
 
     if(this.timer) {
@@ -56,27 +59,30 @@ LoginBot.prototype.initiateLogin = function (callback) {
         this.timer = setTimeout(this.loginTimedOut.bind(this), LoginBot.TIMEOUT);
     }
 
-    this.loginCallback = callback;
+    if(typeof onLogin == 'function') {
+        this.subscribe('login', onLogin);
+    }
+    if(typeof onLoginError == 'function') {
+        this.subscribe('error', onLoginError);
+    }
 
     Phantom.create(function(ph) {
         self.phantom = ph;
         ph.createPage(function(page) {
             self.page = page;
 
-            page.onLoadFinished = self.botLoaded.bind(self);
+            // Listen to onLoadFinished events
+            page.onLoadFinished = function(status) {
+                console.log('load');
+                //self.botLoaded(status);
+            };
 
             // set headers
             page.customHeaders  = self.headers;
 
             // open the login page
-            page.open(self.getLoginURL(), function() {
-                // inject credentials
-                // hopefully JSON evaluation makes this safe
-                page.evaluate(new Function('window.deadbolt = ' + JSON.stringify({ credentials: self.credentials })));
-
-                // fill and submit login form
-                var pageFunction = require('./' + self.service.name + '_login').createLoginScript();
-                page.evaluate(pageFunction);
+            page.open(self.getLoginURL(), function(status) {
+                self.publish('load', status);
             });
         });
     });
@@ -98,27 +104,50 @@ LoginBot.prototype.extractCookies = function () {
 
 /**
  * Called onLoadFinished on Phantom WebPage
- * @param {number} status HTTP status code
+ * @param  {String} status  the phantom status message
  */
-LoginBot.prototype.botLoaded = function (status) {
-    if(status !== 200) {
-        console.log('problem: status not OK ('+status+')');
+LoginBot.prototype.onLoad = function (status) {
+    if(status !== 'success') {
+        console.log('problem: status not OK');
     } else {
         switch(this.state++) {
         case 0:
             // login page loaded
-            console.log('- 0 Login page loaded');
+            console.log('- Login page loaded');
+
+            // inject credentials
+            // hopefully JSON evaluation makes this safe
+            this.page.evaluate(new Function('window.deadbolt = ' + JSON.stringify({ credentials: this.credentials })));
+
+            // fill and submit login form
+            var pageFunction = require('./' + this.service.name + '_login').createLoginScript();
+            this.page.evaluate(pageFunction);
             break;
         case 1:
             // have submitted login form
-            console.log('- 1 Login form submitted');
-            this.loginCallback(this.extractCookies());
-            this.page.close();
-            this.phantom.exit();
-            clearTimeout(this.timer);
+            console.log('- Login form submitted');
+            this.publish('login', this.extractCookies());
+            this.close();
             break;
         }
     }
+};
+
+/**
+ * Close everything down
+ */
+LoginBot.prototype.close = function () {
+    try {
+        this.page.close();
+        this.phantom.exit();
+
+        if(this.timer) {
+            clearTimeout(this.timer);
+            this.timer = false;
+        }
+    } catch(e) { /* do nothing */ }
+
+    this.state = 0;
 };
 
 /**
@@ -131,9 +160,12 @@ LoginBot.prototype.loginTimedOut = function () {
     } catch(e) {
         console.log('- [!] unable to close page');
     } finally {
+        this.publish('timeout');
         clearTimeout(this.timer);
         this.phantom.exit();
     }
 };
+
+Vent.implementOn(LoginBot.prototype);
 
 module.exports = LoginBot;

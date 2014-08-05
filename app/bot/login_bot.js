@@ -52,6 +52,7 @@ LoginBot.prototype.initiateLogin = function (callback) {
     this.loginCallback = callback;
 
     Phantom.create(function(ph) {
+        self.phantom = ph;
         ph.createPage(function(page) {
             self.page = page;
 
@@ -99,7 +100,8 @@ LoginBot.prototype.botLoaded = function (status) {
             // have submitted login form
             console.log('- 1 Login form submitted');
             this.loginCallback(this.extractCookies());
-            this.page.exit();
+            this.page.close();
+            this.phantom.exit();
             clearTimeout(this.timer);
             break;
         }

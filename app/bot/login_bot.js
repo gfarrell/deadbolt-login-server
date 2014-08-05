@@ -1,7 +1,7 @@
 /* global module */
 
-var Phantom = require('phantom');
-var Vent    = require('event.js');
+var Casper = require('casper');
+var Vent   = require('event.js');
 
 var LoginBot = function(serviceController) {
     var self = this;
@@ -9,7 +9,6 @@ var LoginBot = function(serviceController) {
     this.service = serviceController.getService();
     this.credentials = serviceController.getCredentials();
 
-    this.state = 0;
     this.timer = false;
 
     this.subscribe('error', function(message) {
@@ -33,9 +32,6 @@ LoginBot.prototype.mimic = function (request) {
         var correctCaseHeader = header.split(sepChar).map(function(v) { return v[0].toUpperCase() + v.substr(1); }).join(sepChar);
         store[correctCaseHeader] = request.headers[header];
     });
-
-    console.log('- mimicking headers: ');
-    console.log(JSON.stringify(store));
 
     this.headers = store;
 };
@@ -64,7 +60,8 @@ LoginBot.prototype.isLoading = function (isLoading) {
  * @param {Function} callback to be called when login is complete
  */
 LoginBot.prototype.initiateLogin = function (onLogin, onLoginError) {
-    var self = this;
+    var instance = this;
+    var browser;
 
     if(this.timer) {
         console.log('- new login created while in progress... aborting new request.');
@@ -80,33 +77,45 @@ LoginBot.prototype.initiateLogin = function (onLogin, onLoginError) {
         this.subscribe('error', onLoginError);
     }
 
-    Phantom.create(function(ph) {
-        self.phantom = ph;
-        ph.createPage(function(page) {
-            self.page = page;
-
-            // Listen to onLoadStarted
-            page.onLoadStarted = function() {
-                console.log('- loading...');
-                self.isLoading(true);
-            };
-
-            // Listen to onLoadFinished events
-            page.onLoadFinished = function(status) {
-                console.log('- finished loading');
-                self.isLoading(false);
-            };
-
-            // start the process
-            self.step();
-        });
+    browser = Casper.create({
+        pageSettings: {
+            javascriptEnabled: true,
+            loadImages: false,
+            loadPlugins: false,
+            userAgent: this.headers['User-Agent']
+        }
     });
+    browser.start();
+
+    // Open the login page
+    browser.open(this.getLoginURL(), {
+        headers: self.headers
+    });
+
+    // do login
+    browser.then(function() {
+        // fill and submit login form
+        if(instance.service.hasOwnProperty('simpleLogin')) {
+            this.fill(instance.service.simpleLogin.form, instance.credentials, true);
+        } else {
+            var pageFunction = require('./' + instance.service.name + '_login').createLoginScript();
+            this.evaluate(pageFunction, instance.credentials);
+        }
+    });
+
+    // finish login
+    browser.then(function() {
+        instance.finishLogin(this.cookies);
+    });
+
+    // run
+    browser.run();
 };
 
 /**
  * Extracts the relevant cookies from the login process.
  */
-LoginBot.prototype.extractCookies = function () {
+LoginBot.prototype.extractCookies = function (cookies) {
     var names = this.service.loginCookies;
     var cookies = {};
 
@@ -117,48 +126,9 @@ LoginBot.prototype.extractCookies = function () {
     return cookies;
 };
 
-LoginBot.prototype.doLogin = function () {
-    // inject credentials
-    // hopefully JSON evaluation makes this safe
-    this.page.evaluate(new Function('window.deadbolt = ' + JSON.stringify({ credentials: this.credentials })));
-
-    // fill and submit login form
-    var pageFunction = require('./' + this.service.name + '_login').createLoginScript();
-    this.page.evaluate(pageFunction);
-};
-
-LoginBot.prototype.finishLogin = function () {
-    this.publish('loggedIn', this.extractCookies());
+LoginBot.prototype.finishLogin = function (cookies) {
+    this.publish('loggedIn', this.extractCookies(cookies));
     this.close();
-};
-
-/**
- * Stepping function
- */
-LoginBot.prototype.step = function () {
-    if(!this.isLoading()) {
-        switch(this.state++) {
-            case 0:
-                // start process
-                console.log('- [0] loading login page');
-                this.page.customHeaders = this.headers;
-                this.page.open(this.getLoginURL());
-                this.steppingTimer = setInterval(this.step.bind(this), 100);
-                break;
-            case 1:
-                // loaded login page
-                console.log('- [1] login page has loaded');
-                this.doLogin();
-                break;
-            case 2:
-                // form has submitted and next page has loaded
-                console.log('- [2] form has been submitted');
-                this.finishLogin();
-                break;
-            default:
-                this.publish('error', 'invalid state');
-        }
-    }
 };
 
 /**
@@ -166,20 +136,11 @@ LoginBot.prototype.step = function () {
  */
 LoginBot.prototype.close = function () {
     try {
-        this.page.close();
-        this.phantom.exit();
-
         if(this.timer) {
             clearTimeout(this.timer);
             this.timer = false;
         }
-        if(this.steppingTimer) {
-            clearInterval(this.steppingTimer);
-            this.steppingTimer = false;
-        }
     } catch(e) { /* do nothing */ }
-
-    this.state = 0;
 };
 
 /**
@@ -187,15 +148,9 @@ LoginBot.prototype.close = function () {
  */
 LoginBot.prototype.loginTimedOut = function () {
     console.log('- [!] login action timed out.');
-    try {
-        this.page.close();
-    } catch(e) {
-        console.log('- [!] unable to close page');
-    } finally {
-        this.publish('timeout');
-        clearTimeout(this.timer);
-        this.phantom.exit();
-    }
+
+    this.publish('timeout');
+    clearTimeout(this.timer);
 };
 
 Vent.implementOn(LoginBot.prototype);

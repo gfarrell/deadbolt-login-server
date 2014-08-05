@@ -9,8 +9,10 @@
   "author": "Gideon Farrell <me@gideonfarrell.co.uk>",
   "license": "N/A",
   "dependencies": {
+    "casperjs": "^1.1.0-beta3",
     "event.js": "git://github.com/gfarrell/event.js",
     "phantom": "^0.6.5",
-    "phantomjs": "^1.9.7-15"
+    "phantomjs": "^1.9.7-15",
+    "spooky": "^0.2.4"
   }
 }

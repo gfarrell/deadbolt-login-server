@@ -35,10 +35,17 @@ LoginBot.prototype.mimic = function (request) {
     this.headers = store;
 };
 
+/**
+ * Gets the login page URL
+ */
 LoginBot.prototype.getLoginURL = function () {
     return 'https://' + this.service.loginPage;
 };
 
+/**
+ * Initiates the login process
+ * @param {Function} callback to be called when login is complete
+ */
 LoginBot.prototype.initiateLogin = function (callback) {
     var self = this;
 
@@ -70,12 +77,14 @@ LoginBot.prototype.initiateLogin = function (callback) {
                 // fill and submit login form
                 var pageFunction = require('./' + self.service.name + '_login').createLoginScript();
                 page.evaluate(pageFunction);
-                page.render('test.png');
             });
         });
     });
 };
 
+/**
+ * Extracts the relevant cookies from the login process.
+ */
 LoginBot.prototype.extractCookies = function () {
     var names = this.service.loginCookies;
     var cookies = {};
@@ -87,11 +96,15 @@ LoginBot.prototype.extractCookies = function () {
     return cookies;
 };
 
+/**
+ * Called onLoadFinished on Phantom WebPage
+ * @param {number} status HTTP status code
+ */
 LoginBot.prototype.botLoaded = function (status) {
     if(status !== 200) {
         console.log('problem: status not OK ('+status+')');
     } else {
-        switch(state++) {
+        switch(this.state++) {
         case 0:
             // login page loaded
             console.log('- 0 Login page loaded');

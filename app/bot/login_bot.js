@@ -52,9 +52,14 @@ LoginBot.prototype.initiateLogin = function (callback) {
 
             // open the login page
             page.open(self.getLoginURL(), function() {
+                // inject credentials
+                // hopefully JSON evaluation makes this safe
+                page.evaluate(new Function('window.deadbolt = ' + JSON.stringify({ credentials: self.credentials })));
+
                 // fill and submit login form
-                var pageFunction = require('./' + self.service.name + '_login').createLoginScript(self.credentials);
+                var pageFunction = require('./' + self.service.name + '_login').createLoginScript();
                 page.evaluate(pageFunction);
+                page.render('test.png');
             });
         });
     });

@@ -1,7 +1,8 @@
 /* global module, require */
-var route    = require('./route');
-var services = require('../control/services');
-var LoginBot = require('../bot/login_bot');
+var route        = require('./route');
+var services     = require('../control/services');
+var LoginBot     = require('../bot/login_bot');
+var JSONResponse = require('./json_response');
 
 var router = {
     makeRoute: function(req, data) {
@@ -34,18 +35,29 @@ var router = {
     // action: requestLogin
     requestLogin: function(res, route) {
         try {
+            var j = JSONResponse.create(res);
+
             console.log('- loading service data');
             var service = services.load(route.data.service);
 
             var bot = new LoginBot(service);
             bot.mimic(route.request);
 
-            res.write('Login requested to ' + route.data.service);
+            var o = {
+                messages: []
+            };
+
+            bot.subscribe('timeout', function() {
+                j.message('timed out');
+                j.error(true);
+            });
+
+            j.message('login requested for ' + route.data.service);
+
             bot.initiateLogin(function(cookies) {
-                res.write('Login Complete');
-                res.write('<br/>');
-                res.write(JSON.stringify(cookies));
-                res.end();
+                j.message();
+                j.set('cookies', JSON.stringify(cookies));
+                j.write();
             });
         } catch(e) {
             console.log('- ' + e.message);

@@ -9,7 +9,10 @@ var LoginBot = function(serviceController) {
     this.credentials = serviceController.getCredentials();
 
     this.state = 0;
+    this.timer = false;
 };
+
+LoginBot.TIMEOUT = 10000;
 
 /**
  * Mimics a browser by examining a request
@@ -38,6 +41,13 @@ LoginBot.prototype.getLoginURL = function () {
 
 LoginBot.prototype.initiateLogin = function (callback) {
     var self = this;
+
+    if(this.timer) {
+        console.log('- new login created while in progress... aborting new request.');
+        return false;
+    } else {
+        this.timer = setTimeout(this.loginTimedOut.bind(this), LoginBot.TIMEOUT);
+    }
 
     this.loginCallback = callback;
 
@@ -90,8 +100,24 @@ LoginBot.prototype.botLoaded = function (status) {
             console.log('- 1 Login form submitted');
             this.loginCallback(this.extractCookies());
             this.page.exit();
+            clearTimeout(this.timer);
             break;
         }
+    }
+};
+
+/**
+ * Called when the login times out
+ */
+LoginBot.prototype.loginTimedOut = function () {
+    console.log('- [!] login action timed out.');
+    try {
+        this.page.close();
+    } catch(e) {
+        console.log('- [!] unable to close page');
+    } finally {
+        clearTimeout(this.timer);
+        this.phantom.exit();
     }
 };
 

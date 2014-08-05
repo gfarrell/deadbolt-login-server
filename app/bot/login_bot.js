@@ -48,6 +48,18 @@ LoginBot.prototype.getLoginURL = function () {
 };
 
 /**
+ * Indicated if currently loading
+ * @param {Boolean} isLoading set loading status
+ */
+LoginBot.prototype.isLoading = function (isLoading) {
+    if(isLoading !== undefined) {
+        this._loading = !!isLoading;
+    }
+
+    return this._loading;
+};
+
+/**
  * Initiates the login process
  * @param {Function} callback to be called when login is complete
  */
@@ -73,19 +85,20 @@ LoginBot.prototype.initiateLogin = function (onLogin, onLoginError) {
         ph.createPage(function(page) {
             self.page = page;
 
-            // Listen to onLoadFinished events
-            page.onLoadFinished = function(status) {
-                console.log('load');
-                //self.botLoaded(status);
+            // Listen to onLoadStarted
+            page.onLoadStarted = function() {
+                console.log('- loading...');
+                self.isLoading(true);
             };
 
-            // set headers
-            page.customHeaders  = self.headers;
+            // Listen to onLoadFinished events
+            page.onLoadFinished = function(status) {
+                console.log('- finished loading');
+                self.isLoading(false);
+            };
 
-            // open the login page
-            page.open(self.getLoginURL(), function(status) {
-                self.publish('load', status);
-            });
+            // start the process
+            self.step();
         });
     });
 };
@@ -104,33 +117,46 @@ LoginBot.prototype.extractCookies = function () {
     return cookies;
 };
 
+LoginBot.prototype.doLogin = function () {
+    // inject credentials
+    // hopefully JSON evaluation makes this safe
+    this.page.evaluate(new Function('window.deadbolt = ' + JSON.stringify({ credentials: this.credentials })));
+
+    // fill and submit login form
+    var pageFunction = require('./' + this.service.name + '_login').createLoginScript();
+    this.page.evaluate(pageFunction);
+};
+
+LoginBot.prototype.finishLogin = function () {
+    this.publish('loggedIn', this.extractCookies());
+    this.close();
+};
+
 /**
- * Called onLoadFinished on Phantom WebPage
- * @param  {String} status  the phantom status message
+ * Stepping function
  */
-LoginBot.prototype.onLoad = function (status) {
-    if(status !== 'success') {
-        console.log('problem: status not OK');
-    } else {
+LoginBot.prototype.step = function () {
+    if(!this.isLoading()) {
         switch(this.state++) {
-        case 0:
-            // login page loaded
-            console.log('- Login page loaded');
-
-            // inject credentials
-            // hopefully JSON evaluation makes this safe
-            this.page.evaluate(new Function('window.deadbolt = ' + JSON.stringify({ credentials: this.credentials })));
-
-            // fill and submit login form
-            var pageFunction = require('./' + this.service.name + '_login').createLoginScript();
-            this.page.evaluate(pageFunction);
-            break;
-        case 1:
-            // have submitted login form
-            console.log('- Login form submitted');
-            this.publish('login', this.extractCookies());
-            this.close();
-            break;
+            case 0:
+                // start process
+                console.log('- [0] loading login page');
+                this.page.customHeaders = this.headers;
+                this.page.open(this.getLoginURL());
+                this.steppingTimer = setInterval(this.step.bind(this), 100);
+                break;
+            case 1:
+                // loaded login page
+                console.log('- [1] login page has loaded');
+                this.doLogin();
+                break;
+            case 2:
+                // form has submitted and next page has loaded
+                console.log('- [2] form has been submitted');
+                this.finishLogin();
+                break;
+            default:
+                this.publish('error', 'invalid state');
         }
     }
 };
@@ -146,6 +172,10 @@ LoginBot.prototype.close = function () {
         if(this.timer) {
             clearTimeout(this.timer);
             this.timer = false;
+        }
+        if(this.steppingTimer) {
+            clearInterval(this.steppingTimer);
+            this.steppingTimer = false;
         }
     } catch(e) { /* do nothing */ }
 

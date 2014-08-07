@@ -55,7 +55,7 @@ var router = {
             j.message('login requested for ' + route.data.service);
 
             bot.initiateLogin(function(cookies) {
-                j.message();
+                j.message('received cookies');
                 j.set('cookies', JSON.stringify(cookies));
                 j.write();
             });

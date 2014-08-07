@@ -18,8 +18,6 @@ var creds   = JSON.parse(opts.credentials);
 
 casper.options.pageSettings.userAgent = headers['User-Agent'];
 
-casper.log(service, 'debug');
-
 casper.start();
 
 // Open the login page
@@ -40,9 +38,7 @@ casper.then(function() {
 
 // finish login
 casper.then(function() {
-    this.echo('---COOKIES_START---');
-    this.echo(JSON.stringify(this.page.cookies));
-    this.echo('---COOKIES_END---');
+    this.echo('---COOKIES_START---' + JSON.stringify(this.page.cookies) + '---COOKIES_END---');
 });
 
 // run

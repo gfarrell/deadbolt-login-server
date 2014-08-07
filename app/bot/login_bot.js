@@ -1,7 +1,7 @@
 /* global module */
 
-var Casper = require('casper');
 var Vent   = require('event.js');
+var spawn  = require('child_process').spawn;
 
 var LoginBot = function(serviceController) {
     var self = this;
@@ -24,7 +24,7 @@ LoginBot.TIMEOUT = 15000;
  * @return {void}
  */
 LoginBot.prototype.mimic = function (request) {
-    var headers = ['connection', 'accept', 'user-agent', 'accept-encoding', 'accept-language'];
+    var headers = ['connection', 'accept', 'user-agent', /* 'accept-encoding', */ 'accept-language'];
     var store = {};
 
     headers.forEach(function(header) {
@@ -37,31 +37,12 @@ LoginBot.prototype.mimic = function (request) {
 };
 
 /**
- * Gets the login page URL
- */
-LoginBot.prototype.getLoginURL = function () {
-    return 'https://' + this.service.loginPage;
-};
-
-/**
- * Indicated if currently loading
- * @param {Boolean} isLoading set loading status
- */
-LoginBot.prototype.isLoading = function (isLoading) {
-    if(isLoading !== undefined) {
-        this._loading = !!isLoading;
-    }
-
-    return this._loading;
-};
-
-/**
  * Initiates the login process
  * @param {Function} callback to be called when login is complete
  */
 LoginBot.prototype.initiateLogin = function (onLogin, onLoginError) {
-    var instance = this;
-    var browser;
+    var self = this;
+    var casper;
 
     if(this.timer) {
         console.log('- new login created while in progress... aborting new request.');
@@ -71,45 +52,42 @@ LoginBot.prototype.initiateLogin = function (onLogin, onLoginError) {
     }
 
     if(typeof onLogin == 'function') {
-        this.subscribe('login', onLogin);
+        this.subscribe('loggedIn', onLogin);
     }
     if(typeof onLoginError == 'function') {
         this.subscribe('error', onLoginError);
     }
 
-    browser = Casper.create({
-        pageSettings: {
-            javascriptEnabled: true,
-            loadImages: false,
-            loadPlugins: false,
-            userAgent: this.headers['User-Agent']
-        }
-    });
-    browser.start();
+    // spawn the friendly ghost
+    casper = spawn('casperjs',
+        [
+            './app/bot/casper.js',
+            '--headers='    + JSON.stringify(this.headers)     + '',
+            '--service='    + JSON.stringify(this.service)     + '',
+            '--credentials='+ JSON.stringify(this.credentials) + ''
+        ]
+    );
+    casper.stdout.on('data', function(data) {
+        var data = data.toString(); // data is a Buffer object
+        if(/\[error\]/g.test(data)) {
+            self.publish('error', data);
+        } else if(/---COOKIES_START---/.test(data) && /---COOKIES_END---/.test(data)){
+            // COOKIE MONSTER IS HAPPY
+            var cookies_string = data.replace(/---COOKIES_(START|END)---/g, '');
+            var cookies = JSON.parse(cookies_string);
 
-    // Open the login page
-    browser.open(this.getLoginURL(), {
-        headers: self.headers
-    });
-
-    // do login
-    browser.then(function() {
-        // fill and submit login form
-        if(instance.service.hasOwnProperty('simpleLogin')) {
-            this.fill(instance.service.simpleLogin.form, instance.credentials, true);
-        } else {
-            var pageFunction = require('./' + instance.service.name + '_login').createLoginScript();
-            this.evaluate(pageFunction, instance.credentials);
+            self.finishLogin(cookies);
         }
     });
 
-    // finish login
-    browser.then(function() {
-        instance.finishLogin(this.cookies);
+    this.subscribeOnce('timeout', function() {
+        try {
+            console.log('- killing casper process...');
+            casper.kill();
+        } catch(e) {
+            console.log('- failed to kill casper');
+        }
     });
-
-    // run
-    browser.run();
 };
 
 /**
@@ -117,16 +95,19 @@ LoginBot.prototype.initiateLogin = function (onLogin, onLoginError) {
  */
 LoginBot.prototype.extractCookies = function (cookies) {
     var names = this.service.loginCookies;
-    var cookies = {};
+    var store = {};
 
-    names.forEach(function(n) {
-        cookies[n] = this.page.cookies[n];
+    cookies.forEach(function(cookie) {
+        if(names.indexOf(cookie.name) != -1) {
+            store[cookie.name] = cookie;
+        }
     });
 
-    return cookies;
+    return store;
 };
 
 LoginBot.prototype.finishLogin = function (cookies) {
+    console.log('- login finished');
     this.publish('loggedIn', this.extractCookies(cookies));
     this.close();
 };

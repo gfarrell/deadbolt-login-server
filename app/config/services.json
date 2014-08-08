@@ -2,10 +2,17 @@
     "facebook": {
         "name": "facebook",
         "loginPage": "www.facebook.com/login.php",
-        "domains"  : ["facebook.com", "*.facebook.com"],
         "loginCookies": ["c_user", "xs"],
         "simpleLogin": {
             "form": "#login_form"
+        }
+    },
+    "twitter": {
+        "name": "twitter",
+        "loginPage": "twitter.com/login",
+        "loginCookies": ["auth_token", "twid"],
+        "simpleLogin": {
+            "form": "form.signin"
         }
     }
 }

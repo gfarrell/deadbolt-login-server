@@ -34,6 +34,7 @@ var router = {
 
     // action: requestLogin
     requestLogin: function(res, route) {
+        res.setHeader('Access-Control-Allow-Origin', '*');
         try {
             var j = JSONResponse.create(res);
 
@@ -63,6 +64,14 @@ var router = {
             console.log('- ' + e.message);
             router.error404(res);
         }
+    },
+
+    showHeaders: function(res, route) {
+        var headers = route.request.headers;
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        var j = JSONResponse.create(res);
+        j.set('headers', headers);
+        j.write();
     },
 
     // action: error404
